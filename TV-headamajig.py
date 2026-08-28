@@ -803,7 +803,7 @@ print("\n")
 hostname = socket.gethostname()
 
 # get the corresponding ip address
-local_ip = socket.gethostbyname(hostname)\
+local_ip = socket.gethostbyname(hostname)
 
 # encode into qr code
 qr_data = "http://" + local_ip + ":8080"
