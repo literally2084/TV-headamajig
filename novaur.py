@@ -1,4 +1,23 @@
-# novaur TV head !
+# TV-headamajig TM
+# Copyright (c) 2026 novaur
+
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
 
 import os
 import time
@@ -19,7 +38,7 @@ import cv2
 import socket
 from PIL import Image, ImageSequence
 
-print("hello world! novaur is alive")
+print("hello world! your TV is alive")
 
 # lock threading
 media_lock = threading.Lock() # protects video_cap, mode, gif_frames, etc
@@ -30,12 +49,12 @@ pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=2048)
 
 WIDTH, HEIGHT = 800, 600
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("Novaur")
+pygame.display.set_caption("TV-headamajig")
 clock = pygame.time.Clock()
 fullscreen = False
 
 qr_margin = True
-qr_info = "scan this QR code to open the Novaur TV remote, press 'Q' to toggle displaying the QR code"
+qr_info = "scan this QR code to open the TV remote, press 'Q' to toggle displaying the QR code"
 qr_info_text = "scan to open web remote, press 'Q' to toggle overlay"
 qr_info_text_fullscreen = "scan to open web remote, press 'Q' to toggle overlay"
 
@@ -82,8 +101,9 @@ if not os.path.isdir(folder_path):
     print(f"folder '{folder_path}' not found!")
 else:
     print(f"looking in folder: {os.path.abspath(folder_path)}")
-    for i in range(1, 35):
-        filename = f"novaur{i}.png"
+    for i in range(1, 35): # edit '35' to match the amount of assets you have plus one
+        # ^^^ the default set of assets i had personally was 34, so it's set to 35 as the end range
+        filename = f"TV{i}.png" # assets should be named "TV1.png", "TV2.png", etc...
         full_path = os.path.join(folder_path, filename)
         if os.path.exists(full_path):
             try:
@@ -413,7 +433,7 @@ def start_gif(path):
         mode = "gif"
         print(f"[web] playing gif: {path} ({len(frames)} frames)")
     except Exception as e:
-        print(f"Failed to load gif: {e}")
+        print(f"failed to load gif: {e}")
 
 def get_gallery():
     """return list of (filename, full_path, kind) for everything in uploads/."""
@@ -444,17 +464,18 @@ def create_overlay(size):
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 200 * 1024 * 1024  # 200 MB
 
+# default faces (feel free to change or to use as is with your own assets!)
 face_names = [
     "smile/default", "what/shocked", "straight closed mouth :|", "frown/sad",
     "yeah!/open mouth happy", "crying/really sad", "open mouth slightly happy",
     "anxious/nervous", "puzzled", "skeptical closed frown",
     "confused slight open mouth", "happy slight open mouth 2", "confused frown",
     "excuse me?", "mad", "mad open mouth", "haha/slightly sinister",
-    "angry / madder", "green screen", "black espresso", "rizz wink",
+    "angry / madder", "green screen", "additional image #1", "rizz wink",
     "rizz no wink", "giggly/laughing", "super happy", "smug",
-    "NOVA 2084 party", "Mr. Len No ETA meme", "NOVA 2084 poster #1",
-    "NOVA 2084 poster #2", "img of novaur with thumbsup emoji",
-    "thumbsup emoji", "fish", "Dualplex Banner", "Laptop Specs"
+    "additional image #2", "additional image #3", "additional image #4",
+    "additional image #5", "additional image #6",
+    "additional image #7", "additional image #8", "additional image #9", "additional image #10"
 ]
 
 # microphone reactive state
@@ -469,6 +490,7 @@ _mic_thread = None
 _mic_running = False
 
 # closed-mouth index → open-mouth index
+# THIS IS BASED AROUND DEFAULT ASSETS, please change accordingly if you are changing any assets above
 TALKING_PAIRS = {
     0: 4,   # smile/default          → yeah!/open mouth happy
     2: 6,   # straight closed mouth  → open mouth slightly happy
@@ -488,10 +510,9 @@ CONTROL_PAGE = """
 <html>
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Novaur TV Remote</title>
+    <title>TV Remote</title>
     <style>
-        @font-face { font-family: "LazenbyCompSmooth"; src: url("https://nova2084.com/resources/fonts/LazenbyCompSmooth.ttf"); }
-        body { background:#000; color:#eee; font-family: "LazenbyCompSmooth"; text-align:center; padding:16px; }
+        body { background:#000; color:#eee; text-align:center; padding:16px; }
         h1 { margin-bottom:8px; }
         h2 { margin-top:32px; margin-bottom:12px; color:#0ff; }
         .current { font-size:1.3rem; margin-bottom:20px; color:#0f0; }
@@ -521,7 +542,7 @@ CONTROL_PAGE = """
     </style>
 </head>
 <body>
-    <h1>Novaur TV Head</h1>
+    <h1>TV Head</h1>
     <div class="current">
         {% if mode == "faces" %}
             Currently showing: Face {{ current + 1 }}
