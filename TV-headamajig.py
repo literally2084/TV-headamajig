@@ -19,6 +19,12 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+# modding info comments:
+# line 109 --> assets
+# line 472 --> asset names/info
+# line 497 --> mic integration with assets
+# line 514 --> TV remote local webpage html
+
 import os
 import time
 import subprocess
@@ -103,7 +109,7 @@ else:
     print(f"looking in folder: {os.path.abspath(folder_path)}")
     for i in range(1, 35): # edit '35' to match the amount of assets you have plus one
         # ^^^ the default set of assets i had personally was 34, so it's set to 35 as the end range
-        filename = f"TV{i}.png" # assets should be named "TV1.png", "TV2.png", etc...
+        filename = f"TV{i}.png" # assets should be named "TV1.png", "TV2.png", etc... (unless you want to change the naming)
         full_path = os.path.join(folder_path, filename)
         if os.path.exists(full_path):
             try:
@@ -327,7 +333,7 @@ def load_custom_image(path):
         print(f"failed to load image: {e}")
 
 def extract_audio(path: str) -> bool:
-    """Extract audio with ffmpeg CLI (avoids moviepy + OpenCV FFmpeg clash)."""
+    """extract audio with ffmpeg CLI (avoids moviepy + OpenCV FFmpeg clash)."""
     global audio_temp_path, has_audio
     has_audio = False
     audio_temp_path = None
@@ -505,6 +511,7 @@ TALKING_PAIRS = {
 # inverse map
 TALKING_PAIRS_REVERSE = {v: k for k, v in TALKING_PAIRS.items()}
 
+# html for TV remote locally host web page, feel free to change!
 CONTROL_PAGE = """
 <!DOCTYPE html>
 <html>
