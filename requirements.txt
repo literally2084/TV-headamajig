@@ -1,0 +1,8 @@
+numpy
+pygame
+qrcode
+werkzeug
+Flask
+opencv-python
+pillow
+soundcard
