@@ -20,10 +20,10 @@
 # SOFTWARE.
 
 # modding info comments:
-# line 109 --> assets
-# line 472 --> asset names/info
-# line 497 --> mic integration with assets
-# line 514 --> TV remote local webpage html
+# line 110 --> assets
+# line 473 --> asset names/info
+# line 498 --> mic integration with assets
+# line 516 --> TV remote local webpage html
 
 import os
 import time
@@ -497,6 +497,8 @@ _mic_running = False
 
 # closed-mouth index → open-mouth index
 # THIS IS BASED AROUND DEFAULT ASSETS, please change accordingly if you are changing any assets above
+# NOTE: unlike how every (face) asset is numbered from 1, 2, 3, ..., this is the same except everything
+# is subtracted by one, so the first face asset (ex: TV1.png) would be 0, the second would be 1, etc.
 TALKING_PAIRS = {
     0: 4,   # smile/default          → yeah!/open mouth happy
     2: 6,   # straight closed mouth  → open mouth slightly happy
