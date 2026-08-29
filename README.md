@@ -5,7 +5,7 @@ A neat Python program for epic TV head cosplays that involve a full color displa
 I hope this doesn't upset anyone away. I didn't initially intend to publish this program as it was to be for my own personal use.
 
 # Using this program
-This program was primarily intended for my own personal use for my own TV head cosplay, but I have decided to share it to GitHub to see what others do with it. I have made some minor changes so that anyone can personally modify the code to plug in their own assets, customize the locally hosted TV remote website you can access on your phone (or other device), add their own features, etc.
+This program was primarily intended for my own personal use for my own TV head cosplay, but I have decided to share it to GitHub to see what others do with it. I have made some special changes so that anyone can personally modify the code and/or settings to plug in their own assets, customize the locally hosted TV remote website you can access on your phone (or other device), add their own features, etc.
 
 # Features
 - Local TV web remote via QR code
