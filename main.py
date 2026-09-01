@@ -1,6 +1,10 @@
 # TV-Headamajig
 # Copyright (c) 2026 novaur 
 
+import json
+
+CONFIG_FILE = "config.json"
+
 import os
 import time
 import subprocess
@@ -35,9 +39,12 @@ pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=2048)
 
 WIDTH, HEIGHT = 800, 600
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption(TVname)
 clock = pygame.time.Clock()
 fullscreen = False
+
+renaming = False
+rename_buffer = ""
+rename_target_idx = None # which face_names index that is being edited
 
 settings_page = "main" # "main" | "pairs" | "mic" | "assets"
 selected_pair_idx = 0 # which pair is highlighted when editing
@@ -85,30 +92,6 @@ gif_last_time = 0.0
 audio_temp_path = None
 has_audio = False
 
-# load built-in faces
-image_list = []
-folder_path = "assets"
-
-if not os.path.isdir(folder_path):
-    print(f"folder '{folder_path}' not found!")
-else:
-    print(f"looking in folder: {os.path.abspath(folder_path)}")
-    assetsPath = Path(folder_path)
-    # count all .png files and store the integer in a variable
-    assetNum = len(list(assetsPath.glob("*.png")))
-    for i in range(1, assetNum + 1):
-        filename = f"tv{i}.png"
-        full_path = os.path.join(folder_path, filename)
-        if os.path.exists(full_path):
-            try:
-                img = pygame.image.load(full_path).convert_alpha()
-                image_list.append(img)
-                print(f"loaded: {filename}")
-            except Exception as e:
-                print(f"failed to load {filename}: {e}")
-
-print(f"\ntotal images loaded: {len(image_list)}")
-
 # helpers
 def toggle_fullscreen():
     global screen, fullscreen, WIDTH, HEIGHT, qr_info, qr_info_text, qr_info_text_fullscreen, qr_margin
@@ -147,7 +130,7 @@ def hide_all_overlays():
     settingsMenu = False
 
 def update_qr_position():
-    """keep the QR code centred after resolution changes."""
+    """keep the QR code centered after resolution changes."""
     global qr_rect
     qr_rect = qr_surface.get_rect(center=(WIDTH // 2, HEIGHT // 2))
 
@@ -155,11 +138,14 @@ def handle_settings_action(action):
     global settings_page, selected_pair_idx, settingsMenu, show_qrcode
     global mic_sensitivity, mic_threshold, talk_threshold
     global image_list, face_names, TALKING_PAIRS, TALKING_PAIRS_REVERSE
-    
+    global renaming, rename_buffer, rename_target_idx
+    global customFontTxt
+
     if action == "close":
         hide_all_overlays()
+        save_config()
     elif action == "qr":
-        show_qr_overlay() # closes settings
+        show_qr_overlay()
     elif action == "main":
         settings_page = "main"
     elif action == "pairs":
@@ -169,6 +155,8 @@ def handle_settings_action(action):
         settings_page = "mic"
     elif action == "assets":
         settings_page = "assets"
+    elif action == "fonts":
+        settings_page = "fonts"
 
     # pair editing
     elif action == "pair_up":
@@ -184,17 +172,17 @@ def handle_settings_action(action):
             new_open = (open_ + 1) % len(image_list)
             TALKING_PAIRS[closed] = new_open
             TALKING_PAIRS_REVERSE = {v: k for k, v in TALKING_PAIRS.items()}
+            save_config()
     elif action == "add_pair":
-        # find the first face that is not already a “closed” face
         if image_list:
             used = set(TALKING_PAIRS.keys())
             for i in range(len(image_list)):
                 if i not in used:
-                    # default open mouth = next face (or wrap)
                     open_idx = (i + 1) % len(image_list)
                     TALKING_PAIRS[i] = open_idx
                     TALKING_PAIRS_REVERSE = {v: k for k, v in TALKING_PAIRS.items()}
                     selected_pair_idx = list(TALKING_PAIRS.keys()).index(i)
+                    save_config()
                     break
     elif action == "remove_pair":
         pair_list = list(TALKING_PAIRS.items())
@@ -203,24 +191,52 @@ def handle_settings_action(action):
             del TALKING_PAIRS[closed]
             TALKING_PAIRS_REVERSE = {v: k for k, v in TALKING_PAIRS.items()}
             selected_pair_idx = max(0, selected_pair_idx - 1)
+            save_config()
 
-    # mic tweaks
+    # rename
+    elif action == "start_rename":
+        pair_list = list(TALKING_PAIRS.items())
+        if pair_list:
+            closed = pair_list[selected_pair_idx][0]
+            rename_target_idx = closed
+            rename_buffer = face_names[closed] if closed < len(face_names) else f"face {closed+1}"
+            renaming = True
+
+    # mic
     elif action == "sens_down":
         mic_sensitivity = max(0.5, round(mic_sensitivity - 0.3, 1))
+        save_config()
     elif action == "sens_up":
         mic_sensitivity = min(8.0, round(mic_sensitivity + 0.3, 1))
+        save_config()
     elif action == "react_down":
         mic_threshold = max(0.005, round(mic_threshold - 0.005, 3))
+        save_config()
     elif action == "react_up":
         mic_threshold = min(0.2, round(mic_threshold + 0.005, 3))
+        save_config()
     elif action == "talk_down":
         talk_threshold = max(0.02, round(talk_threshold - 0.01, 3))
+        save_config()
     elif action == "talk_up":
         talk_threshold = min(0.5, round(talk_threshold + 0.01, 3))
+        save_config()
 
     # assets
     elif action == "reload_assets":
         reload_face_assets()
+        save_config()
+
+    # fonts (pygame)
+    elif action == "font_cycle":
+        # simple set of common system fonts
+        candidates = ["arial", "freemono", "liberation sans", "ubuntu"]
+        try:
+            idx = candidates.index(customFontTxt.lower())
+            customFontTxt = candidates[(idx + 1) % len(candidates)]
+        except ValueError:
+            customFontTxt = candidates[0]
+        save_config()
 
 def reload_face_assets():
     global image_list, face_names
@@ -579,11 +595,6 @@ def draw_button(surface, text, rect, font, bg=(30, 30, 30), fg=(0, 255, 255), bo
     surface.blit(label, label_rect)
     return rect # so we can store it for clicking
 
-
-# flask
-app = Flask(__name__)
-app.config["MAX_CONTENT_LENGTH"] = 200 * 1024 * 1024  # 200 MB
-
 # default face asset set
 face_names = [
     "smile/default", "what/shocked", "straight closed mouth", "frown/sad",
@@ -621,9 +632,124 @@ TALKING_PAIRS = {
 # inverse map
 TALKING_PAIRS_REVERSE = {v: k for k, v in TALKING_PAIRS.items()}
 
+web_accent = "#00ffff"
+web_bg = "#000000"
+
 # customizable fonts
-customFont = "https://nova2084.com/resources/fonts/LazenbyCompSmooth.ttf" # point to your own font url to change local web remote font
-customFontTxt = "arial" # rename to a system font on your computer running TV-Headamajig to change overlay fonts
+customFont = "https://nova2084.com/resources/fonts/LazenbyCompSmooth.ttf"
+customFontTxt = "arial" 
+
+# config
+def get_default_config():
+    return {
+        "TVname": TVname,
+        "face_names": face_names[:],
+        "TALKING_PAIRS": {str(k): v for k, v in TALKING_PAIRS.items()},
+        "mic_sensitivity": mic_sensitivity,
+        "mic_threshold": mic_threshold,
+        "talk_threshold": talk_threshold,
+        "customFont": customFont, # web font URL
+        "customFontTxt": customFontTxt, # pygame system font name
+        "web_accent": "#00ffff",
+        "web_bg": "#000000",
+    }
+
+def load_config():
+    """load settings from config.json (creates defaults if missing)."""
+    global TVname, face_names, TALKING_PAIRS, TALKING_PAIRS_REVERSE
+    global mic_sensitivity, mic_threshold, talk_threshold
+    global customFont, customFontTxt, web_accent, web_bg
+
+    defaults = get_default_config()
+
+    if not os.path.exists(CONFIG_FILE):
+        save_config(defaults) # write first-time config
+        print("[config] created default config.json")
+        return
+
+    try:
+        with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+            cfg = json.load(f)
+    except Exception as e:
+        print(f"[config] failed to read, using defaults: {e}")
+        return
+
+    # apply values with fallbacks
+    TVname = cfg.get("TVname", defaults["TVname"])
+    
+    pygame.display.set_caption(TVname)
+    
+    face_names = cfg.get("face_names", defaults["face_names"])
+
+    raw_pairs = cfg.get("TALKING_PAIRS", defaults["TALKING_PAIRS"])
+    TALKING_PAIRS = {}
+    for k, v in raw_pairs.items():
+        try:
+            TALKING_PAIRS[int(k)] = int(v)
+        except (ValueError, TypeError):
+            pass
+    TALKING_PAIRS_REVERSE = {v: k for k, v in TALKING_PAIRS.items()}
+
+    mic_sensitivity = float(cfg.get("mic_sensitivity", defaults["mic_sensitivity"]))
+    mic_threshold = float(cfg.get("mic_threshold", defaults["mic_threshold"]))
+    talk_threshold = float(cfg.get("talk_threshold", defaults["talk_threshold"]))
+
+    customFont = cfg.get("customFont", defaults["customFont"])
+    customFontTxt = cfg.get("customFontTxt", defaults["customFontTxt"])
+
+    print("[config] loaded")
+
+def save_config(cfg=None):
+    """save current state (or provided dict) to config.json."""
+    if cfg is None:
+        cfg = {
+            "TVname": TVname,
+            "face_names": face_names,
+            "TALKING_PAIRS": {str(k): v for k, v in TALKING_PAIRS.items()},
+            "mic_sensitivity": mic_sensitivity,
+            "mic_threshold": mic_threshold,
+            "talk_threshold": talk_threshold,
+            "customFont": customFont,
+            "customFontTxt": customFontTxt,
+            "web_accent": "#00ffff",
+            "web_bg": "#000000",
+        }
+    try:
+        with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+            json.dump(cfg, f, indent=2, ensure_ascii=False)
+        print("[config] saved")
+    except Exception as e:
+        print(f"[config] save failed: {e}")
+
+# load built-in faces
+image_list = []
+folder_path = "assets"
+
+if not os.path.isdir(folder_path):
+    print(f"folder '{folder_path}' not found!")
+else:
+    print(f"looking in folder: {os.path.abspath(folder_path)}")
+    assetsPath = Path(folder_path)
+    # count all .png files and store the integer in a variable
+    assetNum = len(list(assetsPath.glob("*.png")))
+    for i in range(1, assetNum + 1):
+        filename = f"tv{i}.png"
+        full_path = os.path.join(folder_path, filename)
+        if os.path.exists(full_path):
+            try:
+                img = pygame.image.load(full_path).convert_alpha()
+                image_list.append(img)
+                print(f"loaded: {filename}")
+            except Exception as e:
+                print(f"failed to load {filename}: {e}")
+
+print(f"\ntotal images loaded: {len(image_list)}")
+
+load_config()
+
+# flask
+app = Flask(__name__)
+app.config["MAX_CONTENT_LENGTH"] = 200 * 1024 * 1024  # 200 MB
 
 CONTROL_PAGE = """
 <!DOCTYPE html>
@@ -633,23 +759,23 @@ CONTROL_PAGE = """
     <title>{{ TVname }} Remote</title>
     <style>
         @font-face { font-family: "custom"; src: url("{{ customFont }}"); }
-        body { background:#000; color:#eee; font-family: "custom"; text-align:center; padding:16px; }
+        body { background:{{ web_bg }}; color:#eee; font-family: "custom"; text-align:center; padding:16px; }
         h1 { margin-bottom:8px; }
         h2 { margin-top:32px; margin-bottom:12px; color:#0ff; }
         p { font-family: "custom"; }
         .current { font-size:1.3rem; margin-bottom:20px; color:#0f0; }
         .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:10px; max-width:640px; margin:0 auto; }
         a.button, button.button {
-            display:block; padding:14px; background:#111; color:cyan; border:1px solid #0ff;
+            display:block; padding:14px; background:{{ web_accent }}; color:{{ web_bg }}; border:1px solid #{{ web_accent }};
             text-decoration:none; border-radius:10px; font-size:0.95rem; cursor:pointer;
         }
-        a.button:hover, button.button:hover { background:#222; }
+        a.button:hover, button.button:hover { background:{{ web_accent }}; }
         .nav { margin-top:28px; display:flex; justify-content:center; gap:16px; flex-wrap:wrap; }
-        .nav a { background:#003366; }
+        .nav a { background:{{ web_bg }}; }
         .gallery { max-width:640px; margin:0 auto; text-align:left; }
         .gallery-item {
             display:flex; align-items:center; justify-content:space-between;
-            background:#111; border:1px solid #333; border-radius:8px;
+            background:{{ web_bg }}; border:1px solid {{ web_accent }}; border-radius:8px;
             padding:10px 14px; margin:8px 0; gap:10px;
         }
         .gallery-item span { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -659,8 +785,8 @@ CONTROL_PAGE = """
         .controls { display:flex; justify-content:center; gap:12px; flex-wrap:wrap; margin:16px 0; }
         .controls a { min-width:90px; }
         form { margin:12px 0; }
-        input[type=file] { color:#ccc; }
-        .hint { font-size:0.85rem; color:#888; }
+        input[type=file] { color:{{ web_accent }}; }
+        .hint { font-size:0.85rem; color:{{ web_accent }} }
     </style>
 </head>
 <body>
@@ -782,6 +908,8 @@ def index():
         TVname=TVname,
         customFont=customFont,
         customFontTxt=customFontTxt,
+        web_accent=web_accent,
+        web_bg=web_bg,
     )
 
 @app.route("/set/<int:idx>")
@@ -989,6 +1117,26 @@ while running:
                         handle_settings_action(action)
                         break
         elif event.type == pygame.KEYDOWN:
+            if renaming:
+                if event.key == pygame.K_RETURN:
+                    if rename_target_idx is not None and 0 <= rename_target_idx < len(face_names):
+                        new_name = rename_buffer.strip()
+                        if new_name:
+                            face_names[rename_target_idx] = new_name
+                            save_config()
+                    renaming = False
+                    rename_buffer = ""
+                    rename_target_idx = None
+                elif event.key == pygame.K_ESCAPE:
+                    renaming = False
+                    rename_buffer = ""
+                    rename_target_idx = None
+                elif event.key == pygame.K_BACKSPACE:
+                    rename_buffer = rename_buffer[:-1]
+                else:
+                    if event.unicode and event.unicode.isprintable():
+                        rename_buffer += event.unicode
+                continue # don’t process other keys while renaming
             if event.key == pygame.K_ESCAPE:
                 if fullscreen:
                     toggle_fullscreen()
@@ -1164,6 +1312,7 @@ while running:
                 ("Edit Talking Pairs", "pairs"),
                 ("Microphone Settings", "mic"),
                 ("Face Assets", "assets"),
+                ("Fonts", "fonts"),
                 ("Close Settings (S)", "close"),
             ]
             for label, action in btns:
@@ -1204,14 +1353,26 @@ while running:
                 ("Change Open →", "cycle_open"),
                 ("Add New Pair", "add_pair"),
                 ("Remove Pair", "remove_pair"),
+                ("Rename Closed Face", "start_rename"),
                 ("← Back", "main"),
             ]
+            
             for i, (label, action) in enumerate(nav):
                 col = i % 2
                 row = i // 2
                 r = pygame.Rect(left + col * (btn_w // 2 + 10), y + row * 42, btn_w // 2 - 5, 36)
                 draw_button(screen, label, r, small)
                 settings_buttons.append((r, action))
+        
+        if renaming:
+            # draw a rename bar
+            bar = pygame.Rect(panel.left + 20, panel.bottom - 70, panel_w - 40, 40)
+            pygame.draw.rect(screen, (40, 40, 50), bar, border_radius=6)
+            pygame.draw.rect(screen, (0, 255, 180), bar, width=2, border_radius=6)
+            prompt = small.render(f"Rename: {rename_buffer}_", True, (0, 255, 180))
+            screen.blit(prompt, (bar.left + 10, bar.centery - 8))
+            hint = small.render("Enter = save · Esc = cancel", True, (150, 150, 150))
+            screen.blit(hint, (bar.left + 10, bar.bottom + 4))
 
         # microphone settings page
         elif settings_page == "mic":
@@ -1253,6 +1414,26 @@ while running:
                 draw_button(screen, label, r, font)
                 settings_buttons.append((r, action))
                 y += 50
+        
+        elif settings_page == "fonts":
+            screen.blit(font.render("GUI font (system name):", True, (200, 200, 200)), (left, y))
+            y += 28
+            screen.blit(font.render(f"→  {customFontTxt}", True, (0, 255, 180)), (left, y))
+            y += 40
+            
+            screen.blit(small.render("Web remote font is set via URL in config.json", True, (140, 140, 140)), (left, y))
+            y += 22
+            screen.blit(small.render(f"Current: {customFont[:50]}...", True, (140, 140, 140)), (left, y))
+            y += 45
+            
+            for label, action in [
+                ("Cycle GUI Font", "font_cycle"),
+                ("← Back", "main"),
+            ]:
+                r = pygame.Rect(left, y, btn_w, 40)
+                draw_button(screen, label, r, font)
+                settings_buttons.append((r, action))
+                y += 50
     
     if video_paused == True:
         overlay = create_overlay(screen.get_size())
@@ -1269,6 +1450,7 @@ while running:
     clock.tick(60)
 
 # cleanup
+save_config()
 stop_microphone()
 stop_media()
 pygame.quit()
